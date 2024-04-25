@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::{RefCell, UnsafeCell}, ops::Deref, pin::Pin, rc::{Rc, Weak}, result, task::{Context, LocalWaker, Poll, Waker}};
+use std::{borrow::BorrowMut, cell::{RefCell}, ops::Deref, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
 
 pub(crate) struct Channel<T: Clone> {
     result: Poll<T>,
@@ -101,7 +101,7 @@ mod test {
 
     use futures::StreamExt;
 
-    use crate::{sync::broadcast::MaybeReady, task};
+    use crate::{task};
 
     use super::channel;
 

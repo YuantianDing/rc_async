@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::{Cell, RefCell, UnsafeCell}, pin::Pin, rc::{Rc, Weak}, result, task::{Context, LocalWaker, Poll, Waker}};
+use std::{borrow::BorrowMut, cell::{RefCell}, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
 
 pub(crate) struct Channel<T> {
     result: Option<Poll<T>>,
