@@ -1,5 +1,5 @@
 use core::task::{ContextBuilder, LocalWaker};
-use std::{borrow::{Borrow, BorrowMut}, cell::{RefCell}, future::Future, pin::Pin, rc::Rc, task::{Context, LocalWake, Poll, Waker}};
+use std::{cell::{Cell, RefCell}, future::Future, pin::Pin, rc::Rc, task::{Context, LocalWake, Poll, Waker}};
 
 use crate::sync::oneshot::{self, Channel};
 
@@ -91,9 +91,17 @@ impl<T: Unpin> std::future::Future for JoinHandle<T> {
     }
 }
 
+thread_local!{
+    static NUM_TASKS : Cell<usize> = 0.into();
+}
+
 pub fn spawn<T: Unpin>(fut: impl Future<Output = T> + 'static) -> JoinHandle<T> {
+    NUM_TASKS.with(|x| x.update(|x| x+1));
     let handle = JoinHandle(Rc::new(Task::new(fut)));
     handle.waker().wake();
     handle
 }
 
+pub fn number_of_tasks() -> usize {
+    NUM_TASKS.with(|x| x.get())
+}

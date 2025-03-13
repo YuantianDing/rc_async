@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::{RefCell}, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
+use std::{cell::RefCell, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
 
 pub(crate) struct Channel<T> {
     result: Option<Poll<T>>,
@@ -23,9 +23,9 @@ impl<T> Channel<T> {
     fn detach(&mut self) -> LocalWaker {
         std::mem::replace(&mut self.waker, LocalWaker::noop().clone())
     }
-    pub(crate) fn close(&mut self) {
-        self.result = None;
-    }
+    // pub(crate) fn close(&mut self) {
+    //     self.result = None;
+    // }
     pub(crate) fn poll_ref_nocx(&mut self) -> Poll<T> {
         match self.result {
             Some(Poll::Ready(_)) => {

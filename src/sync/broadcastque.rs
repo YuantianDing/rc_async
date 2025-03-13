@@ -1,10 +1,10 @@
-use std::{borrow::BorrowMut, cell::{Cell, RefCell}, ops::Deref, os::unix::thread, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
+use std::{borrow::BorrowMut, cell::{Cell, RefCell}, collections::VecDeque, ops::Deref, os::unix::thread, pin::Pin, rc::{Rc, Weak}, task::{Context, LocalWaker, Poll}};
 
 use futures_core::Future;
 
 pub(crate) struct Channel<T: Clone> {
     result: Poll<T>,
-    waker: Vec<LocalWaker>,
+    waker: VecDeque<LocalWaker>,
 }
 
 #[derive(Clone)]
@@ -39,30 +39,30 @@ impl<T: Clone + std::fmt::Debug> Sender<T> {
         assert!(self.0.as_ptr() as usize >= 0x200);
         let mut this = self.0.deref().borrow_mut();
         let result = std::mem::replace(&mut this.result, Poll::Pending);
-        if result.is_pending() { this.waker.push(cx.local_waker().clone()); }
+        if result.is_pending() { this.waker.push_back(cx.local_waker().clone()); }
         result
     }
     pub fn new() -> Self {
         Self(Rc::new(RefCell::new(Channel {
             result: Poll::Pending,
-            waker: Vec::new(),
+            waker: VecDeque::new(),
         })))
     }
-    fn retrieve_wakers(&self) -> Vec<LocalWaker> {
-        let mut lock = (*self.0).borrow_mut();
-        std::mem::replace(&mut lock.waker, Vec::new())
-    }
-    pub fn send(&self, v: T) {
-        let wakers = self.retrieve_wakers();
+    pub fn send(&self, v: T, count: usize) {
         let pointer = self.0.clone();
-        for waker in wakers {
-            {
-                assert!(Rc::ptr_eq(&self.0, &pointer));
-                let a = &*pointer;
-                let mut b = a.borrow_mut();
-                b.result = Poll::Ready(v.clone());
-            }
-            waker.wake();
+        let count = std::cmp::min((*self.0).borrow_mut().waker.len(), count);
+        
+        for _ in 0..count {
+            let r = (*self.0).borrow_mut().waker.pop_front();
+            if let Some(waker) = r {
+                {
+                    assert!(Rc::ptr_eq(&self.0, &pointer));
+                    let a = &*pointer;
+                    let mut b = a.borrow_mut();
+                    b.result = Poll::Ready(v.clone());
+                }
+                waker.wake();
+            } else { break; } 
         }
     }
 
@@ -77,53 +77,6 @@ pub fn channel<T: Clone + std::fmt::Debug>() -> Sender<T> {
     a
 }
 
-#[derive(Clone)]
-pub enum MaybeReady<T: Clone> {
-    Ready(T),
-    Pending(Sender<T>),
-}
-
-impl<T: Clone + std::fmt::Debug> MaybeReady<T> {
-    pub fn pending() -> Self {
-        Self::Pending(channel())
-    }
-    pub fn ready(t: T) -> Self {
-        Self::Ready(t)
-    }
-    pub fn is_ready(&self) -> bool {
-        matches!(self, Self::Ready(_))
-    }
-    pub fn set(&mut self, t: T) {
-        if let Self::Pending(ref sd) = std::mem::replace(self, Self::Ready(t.clone())) {
-            sd.send(t.clone());
-        }
-    }
-    pub fn sender(&mut self, t: T) -> Option<Sender<T>> {
-        let res = if let Self::Pending(ref sd) = self {
-            Some(sd.clone())
-        } else { None };
-        *self = Self::Ready(t);
-        res
-    }
-    pub fn poll(&self) -> Poll<T> {
-        match self {
-            MaybeReady::Ready(a) => Poll::Ready(a.clone()),
-            MaybeReady::Pending(_) => Poll::Pending,
-        }
-    }
-    pub fn poll_opt(&self) -> Option<T> {
-        match self {
-            MaybeReady::Ready(a) => Some(a.clone()),
-            MaybeReady::Pending(_) => None,
-        }
-    }
-    pub async fn get(&self) -> T {
-        match self {
-            MaybeReady::Ready(a) => a.clone(),
-            MaybeReady::Pending(sender) => sender.clone().await,
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -162,13 +115,13 @@ mod test {
         });
         assert!(!handle.is_ready());
         eprintln!("Sending 1");
-        let _ = sd.send(1);
+        let _ = sd.send(1, 10);
         assert!(!handle.is_ready());
         eprintln!("Sending 2");
-        let _ = sd.send(2);
+        let _ = sd.send(2, 20);
         assert!(!handle.is_ready());
         eprintln!("Sending 3");
-        let _ = sd.send(3);
+        let _ = sd.send(3, 30);
         assert!(handle.is_ready());
         assert!(handle.poll_rc_nocx() == Poll::Ready(9));
     }

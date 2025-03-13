@@ -1,6 +1,5 @@
 #![feature(local_waker)]
-#![feature(waker_getters)]
-#![feature(noop_waker)]
+#![feature(cell_update)]
 // pub mod future;
 pub mod sync;
 pub mod task;
