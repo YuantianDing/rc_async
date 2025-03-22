@@ -8,7 +8,7 @@ description = "DryadSynth solver for string transformation programs"
 homepage = "https://github.com/YuantianDing/rc_async"
 repository = "https://github.com/YuantianDing/rc_async"
 readme = "README.md"
-keywords = ["rc", "refcount", "reference counting", "thread local", "async", "asynchronous", "channel"]
+keywords = ["rc", "thread local", "async", "asynchronous", "channel"]
 
 [dependencies]
 derive_more = { version = "2.0.1", features = ["full"] }
